@@ -1,0 +1,59 @@
+---
+title: Jekyll on Amazon AWS
+layout: post
+---
+
+h1. Jekyll on AWS
+
+I've been thinking about getting back to writing a technology-oriented blog for some time. I've decided to put together a setup based on a static site and a couple of AWS services - S3 an CloudFront - and wanted to share the setup I ended up using.
+
+h2. Using Jekyll
+
+"Jekyll":https://github.com/mojombo/jekyll is a simple, blog aware, static site generator. I was looking for a blogging engine that can generate HTML files - to avoid any type of server setup - and doesn't have any dependency on a database; so, Jekyll is a perfect fit. I've used Jekyll in the past, you can see that "beginningrails.com":http://beginningrails.com is powered by Jekyll ("source":https://github.com/ccjr/beginningrails.com). I just wanted to tool to help me focus on writing, and this is it.
+
+I've spent longer than expected trying to put together a simple design that would work for me. So, I ended up using the design from "Tom Preston-Werner":http://tom.preston-werner.com. I'm planning to make a lot of tweaks to the design in the next few days to personalize it.
+
+h2. Files to S3
+
+I did create a S3 bucket to host all the files. After I generate the web site using Jekyll, and feel like it's ready to go live, I have to copy all the files to S3. I decided to write a very simple rake task to help me accomplish that, here's the source code:
+
+{% highlight ruby %}
+desc "deploy to www.clovescarneirojr.com"
+task :deploy do
+  require 'rubygems'
+  require 'right_aws'
+  
+  BUCKET_NAME = 'clovescarneirojr'
+  DISTRIBUTION_ID = 'E2GUKSN5IUZCUQ'
+
+  # copy all Jekyll generated files to S3
+  s3 = RightAws::S3Interface.new
+  bucket_acl = s3.get_acl(BUCKET_NAME)
+  paths_to_invalidate = []
+  
+  Dir["_site/**/*.*"].each do |file| 
+    file_path = File.join(File.dirname(__FILE__), file)
+    s3_file_name = file.gsub('_site/', '')
+    
+    puts "-- Uploading #{file_path} to S3 as #{s3_file_name} --"
+    s3.put(BUCKET_NAME, s3_file_name,  File.open(file_path))
+    s3.put_acl(BUCKET_NAME, s3_file_name, bucket_acl[:object])
+    paths_to_invalidate << "/#{s3_file_name}"
+  end
+end
+{% endhighlight %}
+
+h2. Using CloudFront
+
+I wanted to use "AWS CloudFront":http://aws.amazon.com/cloudfront/ as a content delivery network for the web site, which would reduce latency for all users browsing the site by distributing all files to network edge points all over the world. You can setup a CloudFront distribution using either the API or one of the many tools available. I decided to use a great open source FTP/WebDAV/Amazon S3 Browser called "Cyberduck":http://cyberduck.ch/. Using Cyberduck, you can browse your S3 buckets, and setup a distribution point for your bucket. With the URL of the CloudFront distribution - the format is http://ID.cloudfront.net, you can create a CNAME DNS entry from your domain pointing to the CloudFront URL, and you're done with the setup.
+
+One last thing one need to do is invalidate the distribution every time you want to deploy a new version of the web site. For that, I added a few lines to my deployment task.
+
+{% highlight ruby %}
+  # now, we need to invalidate the distribution
+  acf = RightAws::AcfInterface.new
+  puts "-- Invalidating the CloudFront distribution --"
+  acf.create_invalidation DISTRIBUTION_ID, :path => paths_to_invalidate
+{% endhighlight %}
+
+I'm invalidating all the files in the CloudFront distribution, which may not seem optimal in cases where there are many files that haven't changed; however, that seems like a reasonable compromise in my case.

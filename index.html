@@ -1,0 +1,22 @@
+---
+layout: page
+title: Home
+---
+
+<div id="home">
+  <h1>Still building software</h1>
+  <p>
+    I'm a software engineer, who's been working with building software since 1997, specially web-based applications. 
+    In terms of technology, my career is pretty much separated into two parts: Java and Ruby. 
+    I've built web applications for large telecommunication companies, such as Manitoba Telecommunications(MTS), AMCTV, We.tv, News12, and SportSkool using Java frameworks, including Struts, Webwork and Spring. 
+    Since 2006, I've moved to the Ruby camp, and have really enjoyed working full-time with Ruby and Rails; dynamic and easily-testable languages as the way to go. 
+    I wrote a couple of <a href="/book.html">Ruby on Rails books</a>, "Beginning Rails" and "Beginning Rails 3" for Apress.
+    I am currently working for <a href="http://amazon.com">Amazon.com</a> in Seattle, Washington.
+  </p>
+  <h2>Blog Posts</h2>
+  <ul class="posts">
+    {% for post in site.posts %}
+      <li><span>{{ post.date | date_to_string }}</span> &raquo; <a href="{{ post.url }}">{{ post.title }}</a></li>
+    {% endfor %}
+  </ul>
+</div>
