@@ -1,0 +1,16 @@
+---
+title: I am a triathlete
+layout: post
+---
+
+h1. Hobby over Work
+
+My nth attempt at writing a technology-oriented blog has failed, and I give up. I have no idea why I've been failing at writing about programming-related topics. I am part-perfectionist, and have written a few posts that never made it to the wild, I haven't crossed the finish line, total analysis paralysis. I'll try to start writing about things other than technology, lost of smart people do an awesome job at covering tech subjects; so, I'll focus on stuff that is taking more of my fun time from now on. If that makes me start writing more often, then, it's a win.
+
+h2. I am a triathlete
+
+I'll start with some background, I started running regularly in 2011, a few months after I became a father. I was still living in Seattle, WA, and did most of my running using a threadmill while listening to my preferred Ruby podcasts, that made the time pass fast, and I felt really good about being active again. In a matter of 6 months, I started participating in organized races, always with the goal of reaching the finish line. In this order, I did a 5km, 10km, 15km and a half marathon, all in a span of 4 months. Participating in races was very encouraging because it showed me how out of shape I was, I remember being passed by a 7 years old girl, and a 60+ years old lady in my first 5km, that was enfuriating; but, a sign that I had lots to improve. I had found a new hobby and was very happy about it.
+
+In early 2012, I got hit by my first running injury, and was sidelined for approximatelly 6 months. I saw a total of four doctors, who reached the same diagnosis, but all proposed different treatments, from not walking/running for months to cortisone shots to surgery. During that time, I bought a hybrid bike and decided to start riding it when I was feeling better. After a few months of very light bike riding and almost no running, the ankle pain finally went away, and I became an accidental triathlete.
+
+I did my first sprint triathlon in Oct 2013, because I first signed up for an International - a bit over twice the - distance the following month. In almost one year, I finished 4 triathlons - 3 sprints, 1 international - and I went from gasping for air after swimming for 25 yards to doing 2,000 yards in a single session, from begin the last in the bike session to middle of the pack. I did purchase a real - pricy - triathlon bike, and a lot of fancy gear that comes from joining the sport, and have been in the best shape of my life. I'm currently training for my first Half Ironman distance event, "Ironman 70.3 Miami":http://ironmanmiami.com, and will try to post about my progress regularly.
