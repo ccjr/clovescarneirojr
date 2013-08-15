@@ -1,15 +1,9 @@
 ---
 title: 10 weeks to Ironman 70.3 Miami
 layout: post
+published: false
 ---
 
-h1. Jekyll on AWS
+h1. 10 weeks to Ironman 70.3 Miami
 
-I've been thinking about getting back to writing a technology-oriented blog for some time. I've decided to put together a setup based on a static site and a couple of AWS services - S3 an CloudFront - and wanted to share the setup I ended up using.
-
-h2. Training
-
-"Jekyll":https://github.com/mojombo/jekyll is a simple, blog aware, static site generator. I was looking for a blogging engine that can generate HTML files - to avoid any type of server setup - and doesn't have any dependency on a database; so, Jekyll is a perfect fit. I've used Jekyll in the past, you can see that "beginningrails.com":http://beginningrails.com is powered by Jekyll ("source":https://github.com/ccjr/beginningrails.com). I just wanted to tool to help me focus on writing, and this is it.
-
-I've spent longer than expected trying to put together a simple design that would work for me. So, I ended up using the design from "Tom Preston-Werner":http://tom.preston-werner.com. I'm planning to make a lot of tweaks to the design in the next few days to personalize it.
-
+h2. 10 weeks to Ironman 70.3 Miami
