@@ -5,9 +5,12 @@ task :deploy do
   
   BUCKET_NAME = 'clovescarneirojr'
   DISTRIBUTION_ID = 'E2GUKSN5IUZCUQ'
+  # set when deploying
+  ACCESS_KEY = ''
+  SECRET_KEY = ''
 
   # copy all Jekyll generated files to S3
-  s3 = RightAws::S3Interface.new
+  s3 = RightAws::S3Interface.new ACCESS_KEY, SECRET_KEY
   bucket_acl = s3.get_acl(BUCKET_NAME)
   paths_to_invalidate = []
   
@@ -22,7 +25,7 @@ task :deploy do
   end
   
   # now, we need to invalidate the distribution
-  acf = RightAws::AcfInterface.new
+  acf = RightAws::AcfInterface.new ACCESS_KEY, SECRET_KEY
   puts "-- Invalidating the CloudFront distribution --"
   acf.create_invalidation DISTRIBUTION_ID, :path => paths_to_invalidate
 end
