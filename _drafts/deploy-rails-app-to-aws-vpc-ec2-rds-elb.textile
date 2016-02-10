@@ -1,0 +1,221 @@
+---
+title: Deploy a Rails application to AWS - using VPC, EC2, RDS and ELB
+layout: post
+---
+
+h1. Deploy a Rails application to AWS - using VPC, EC2, RDS and ELB
+
+It's 2016, and there are probably a gazillion ways and articles about deploying Ruby on Rails applications to AWS, and I'm writing another one of those.
+
+In my defense, I'm writing this as part of some research I'm doing "at work":https://www.livingsocial.com, and want to save those notes for later. I will try to make this more interesting than a plain "Rails to EC2" recipe, I'll be setting up a VPC, build an AMI ready do run Rails, create a database host using RDS, deploy - and run - a Rails app to an EC2 instance, and setup a Elastic Load Balancer in front of it.
+
+If this ever becomes useful to anyone else other than myself, that's a plus.
+
+h2. Setup your VPC
+
+We'll use "Amazon Virtual Private Cloud (Amazon VPC)":https://aws.amazon.com/vpc, it "enables you to launch Amazon Web Services (AWS) resources into a virtual network that you've defined". I'll keep it simple and will setup a VPC
+
+* Go to "https://console.aws.amazon.com/vpc/home":https://console.aws.amazon.com/vpc/home, and click on "Start VPC Wizard"
+* Select "VPC with a Single Public Subnet"
+* Added some details about your VPC, I've only given it a name - <strong>vpc-rails-app</strong>, and decided to set a specific Availability Zone to <strong>us-east-1c</strong>.
+
+After your VPC is ready, you need to create a second subnet, which will be required by RDS when we need to create a DB Security Group, and also when you create a Elastic Load Balancer; so,
+
+* Click on the "Subnets" link in the VPC dashboard
+* Click on "Create Subnet"
+* Give the new subnet a name, make sure the VPC we created is selected, and "CIDR block" to "
+10.0.1.0/24".
+
+We're done setting up the VPC, I'm not a networking professional; so, I'd rather not mess things up much :).
+
+h2. Start an instance
+
+Now, it's time to get a "EC2":https://aws.amazon.com/ec2/ host running:
+
+* Go to the "https://console.aws.amazon.com/ec2/v2/home":https://console.aws.amazon.com/ec2/v2/home
+* Select "Launch Instance"
+* You can select whatever Linux flavor you're comfortable with, I prefer running a Ubuntu server because there's a of documentation online, and it works just fine. I went ahead with a "Ubuntu Server 14.04 LTS (HVM), SSD Volume Type" machine.
+* Select the instance type you're interested in running, a <strong>t2.micro</strong> is good enough for our use case.
+* In "Configure Instance Details", select your VPC and change the "Auto-assign Public IP" option to "Enable".
+* In "Tag Instance", give the instance a name, I went with <string>rails-app-host</strong>
+* In "Configure Security Group", you should change the security group to only allow incoming SSH connections from you IP, by changing "Source" to "My IP", and should add a rule to accept TCP traffic on port 9292 - that's where our application will run - from any host.
+* In the next screen, when you press "Launch", you will be prompted to "Select an existing key pair or create a new key pair". If this is the first time you're doing this, create a new key pair, and make sure you save it somewhere secure. I save my keys to <strong>~/.ssh</strong>.
+
+In a matter of minutes, your instance will be running, and ready to go.
+
+h2. Setup SSH configuration
+
+I always add an entry to new instances in ~/.ssh/config to make connecting to the instance easier, my configuration looks like:
+
+{% highlight ruby %}
+Host <HOST IP>
+HostName <HOST IP>
+User ubuntu
+IdentityFile "~/.ssh/<YOUR KEY>"
+{% endhighlight %}
+
+With this in place, you can just <strong>ssh HOST IP</strong> to connect to your EC2 instance.
+
+h2. Install needed software
+
+Now, we need to install software to allow us to run Ruby on Rails web applications in this host. This is a step that DevOps Engineers will probably want to use a tool like "Chef":https://www.chef.io/ or "Ansible":http://www.ansible.com/.
+
+We will first install packages used for building software, then, we'll install some tools that will be useful later, such as <strong>git</strong> and <strong>postgresql-client</strong>.
+
+{% highlight bash %}
+sudo apt-get install autoconf bison build-essential libssl-dev libyaml-dev
+  libreadline6-dev zlib1g-dev libncurses5-dev libffi-dev libgdbm3 libgdbm-dev
+sudo apt-get install postgresql-client libpq-dev nodejs git
+{% endhighlight %}
+
+Now, it's time to setup Ruby. I really like using "rbenv":http://rbenv.org/, so, we'll install it along with "ruby-build":https://github.com/rbenv/ruby-build:
+
+{% highlight bash %}
+git clone git://github.com/sstephenson/rbenv.git .rbenv
+echo 'export PATH="$HOME/.rbenv/bin:$PATH"' >> ~/.bash_profile
+echo 'eval "$(rbenv init -)"' >> ~/.bash_profile
+
+git clone git://github.com/sstephenson/ruby-build.git ~/.rbenv/plugins/ruby-build
+echo 'export PATH="$HOME/.rbenv/plugins/ruby-build/bin:$PATH"' >> ~/.bash_profile
+source ~/.bash_profile
+{% endhighlight %}
+
+Now, we are ready to get Ruby install, let's go with the most recent version. Having selected the slowest type of instance at AWS, this is the step that will take the longer, time for a coffee break while this runs:
+
+{% highlight bash %}
+rbenv install -v 2.3.0
+rbenv global 2.3.0
+gem install bundler
+rbenv rehash
+{% endhighlight %}
+
+Our instance is almost ready, the remaining step it to create a folder where we want to deploy applications to. We'll also make sure that folder is writable by the ubuntu user, which is what we'll use for deployment.
+
+{% highlight bash %}
+sudo mkdir /var/www
+sudo chown ubuntu:ubuntu /var/www
+{% endhighlight %}
+
+And our instance is ready.
+
+h2. Generate an AMI
+
+We don't want to perform the initial setup we just did every time we start a new instance; so, we'll create an Amazon Machine Image out of the current state of our instance; so that we can start new instance with all the software we need already setup!
+
+* Go to the EC2 Instances dashboard at "https://console.aws.amazon.com/ec2/v2/home?region=us-east-1#Instances:sort=instanceId":https://console.aws.amazon.com/ec2/v2/home?region=us-east-1#Instances:sort=instanceId
+* Select your instance, and click on "Actions" -> "Image" -> "Create Image"
+* Give you image a name and description, and you're done.
+
+You'll notice that your SSH connection to that instance will be terminated because the system reboots when an AMI is created.
+
+h2. Run a database instance - RDS
+
+Our sample Rails application connects to a PostgreSQL database; so, we'll use "Amazon Relational Database Service":https://aws.amazon.com/rds/ to manage our database instance.
+
+* Go to the RDS dashboard at "https://console.aws.amazon.com/rds/home?region=us-east-1":https://console.aws.amazon.com/rds/home?region=us-east-1
+* Launch a DB Instance
+* PostgreSQL -> "Dev/Test"
+* Select the db instance class, <strong>db.t2.micro</strong> is an affordable option. Also, give your RDS instance a name, I used <strong>rails-app-db</strong>. Also, select a username and password, make sure you keep those somewhere.
+* In the "Network & Security" step, you will need to select the VPC we created, keep the "Subnet Group" option to "Create New DB Subnet Group". I also like to mark database instances and not publicly accessible.
+* We have to create one database, our name our <strong>books_production</strong>. You can add more databases later, if necessary.
+
+One last thing to do is to make sure we can connect to our PostgreSQL instance, we'll find that
+
+We're done with our RDS instance, it takes a few minutes for it to come live.
+
+h2. Deploy your Rails application with Capistrano
+
+The application we will be setting up is hosted at "https://github.com/ccjr/books":https://github.com/ccjr/books. The last step in our setup is to add secret keys and database credentials to the host we're going to deploy the application to. I terminated the instance we used to create our AMI, and started a new instance using that image, let's connect to is, and add our credentials. Our rails application requires a set of enviornment variables to work properly; however, we don't want that information to be in git; so, we still need to get it into the host somehow. A simple solution is to define define those environment variables in the <strong>/etc/environment</strong> file, we'll add the following lines to it:
+
+{% highlight bash %}
+SECRET_KEY_BASE=3cd60b..
+BOOKS_DB_HOST=HOST.us-east-1.rds.amazonaws.com
+BOOKS_DB_USER=master
+BOOKS_DB_PASSWD=..
+{% endhighlight %}
+
+Now, the host is really ready to have our application deployed, I did setup Capistrano in our Rails application, here's what I added to our <strong>Gemfile</strong>:
+
+{% highlight ruby %}
+gem "capistrano", "~> 3.4"
+gem 'capistrano-rails'
+gem 'capistrano-bundler'
+gem 'capistrano-rbenv'
+gem 'capistrano3-puma'
+{% endhighlight %}
+
+this is what the <strong>config/deploy.rb</strong> file looks like:
+
+{% highlight ruby %}
+lock '3.4.0'
+
+set :application, 'books'
+set :repo_url, 'git@github.com:ccjr/books.git'
+set :user, 'ubuntu'
+set :rbenv_ruby, '2.3.0'
+
+set :puma_bind, 'tcp://0.0.0.0:9292'
+{% endhighlight %}
+
+and the <strong>config/deploy/production.rb</strong> file looks like:
+
+{% highlight ruby %}
+set :stage, :production
+
+server YOUR_INSTANCE_IP, user: 'ubuntu', roles: %w{app web db}
+{% endhighlight %}
+
+Our instance is ready to be deployed to; so, from the root of our Rails application, run:
+
+{% highlight bash %}
+bundle exec cap production deploy
+
+....
+
+INFO [796d2396] Finished in 0.506 seconds with exit status 0 (successful).
+{% endhighlight %}
+
+Woohoo! The first time you deploy, it will take a few minutes because none of your gems will be in the host, but subsequent deployments should take less than 30 seconds.
+
+Now, we need proof that our application is running, I did set it up to run on port 9292, so, in that host, I will run:
+
+{% highlight bash %}
+$ curl -I http://0.0.0.0:9292
+HTTP/1.1 200 OK
+..
+X-Request-Id: 8601d978-ce8f-469f-9a3e-33dc107ad5b5
+X-Runtime: 0.065309
+{% endhighlight %}
+
+So, it is running using Puma on port 9292, but we don't want to type that in a browser, let's setup a load balancer.
+
+h2. Using a Elastic Load Balancer
+
+I think it makes sense to setup an "Elastic Load Balancer":https://aws.amazon.com/elasticloadbalancing/ in front of any application, as it will help you scale later; so let's do that:
+
+* Go to "https://console.aws.amazon.com/ec2/v2/home?region=us-east-1#LoadBalancers:":https://console.aws.amazon.com/ec2/v2/home?region=us-east-1#LoadBalancers:
+* Click on "Create Load Balancer"
+* Give the load balancer a name, then in "Create LB Inside", make sure you select your VPC, and add all subnets in the VPC to the load balancer. We'll setup the load balancer to take requests on port 80, and forward to port 9292 under "Instance Port" where our application is running.
+* You will see some warnings about not setting up SSL in this load balancer, but you can skip that.
+* In "Configure Health Check", you can change "Ping Port" to 9292 and "Ping Path" to <strong>/</strong>. If your application doesn't respond to that path, the ELB will not add it to the load balancer.
+* In "Add EC2 Instances", you should see the instance we started in the previous step.
+
+Now, you're done, you should see the ELB created, it's where you can get its DNS Name, it looks like <strong>NAME-ID.us-east-1.elb.amazonaws.com</strong>, you should be able to hit that URL in a browser in a couple of minutes because it takes some time for the ELB to register a host.
+
+We're finally done, and have an easy-to-scale - that's the promise - reachable web application running on AWS.
+
+h2. Next Steps
+
+I can think of a few things to do next, mostly for security reasons:
+
+* Change security group of the EC2 instance to only allow requests from the Load Balancer
+* Change security group of the RDS instance to only allow requests from the VPC
+* Create a bastion host in the VPC; so, that it's the only host accessible via SSH
+* Create an AMI with the environment variables set for each application you're going to deploy.
+* Add a CNAME DNS entry pointing to the ELB, so that we can hit it using an easy-to-remember URL :)
+
+I'll leave those things as an exercise for you.
+
+h3. Conclusion
+
+That was not trivial! This is far from a state-of-the deployment infrastructure, but we've managed to get our environment up and running. I've done this a few times in the past, and have always run into issues, I hope this article will help save you some time when setting this up. Feel free to add comments/questions/corrections in the comments.
